@@ -1,56 +1,76 @@
-# dashboard.py
-import tkinter as tk
-from tkinter import ttk
-import psutil
-import platform
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
 import threading
 import time
 
-REFRESH_INTERVAL = 2000  # milliseconds
+from modules.cpu import get_cpu_usage
+from modules.ram import get_ram_usage
+from modules.disk import get_disk_usage
+from modules.network import get_network_stats
 
-class SystemHealthDashboard(tk.Tk):
+
+class SystemHealthDashboard(tb.Window):
     def __init__(self):
-        super().__init__()
+        super().__init__(themename="cyborg")  # Try "flatly" or "darkly" if you prefer
         self.title("System Health Dashboard")
-        self.geometry("400x250")
+        self.geometry("500x350")
         self.resizable(False, False)
 
-        self.style = ttk.Style(self)
-        self.style.theme_use("clam")
+        # Title
+        tb.Label(
+            self,
+            text="🖥 System Health Dashboard",
+            font=("Segoe UI", 18, "bold"),
+            bootstyle=PRIMARY
+        ).pack(pady=10)
 
-        self._build_ui()
-        self.update_stats()
+        # Stats frame for clean layout
+        stats_frame = tb.Frame(self, padding=10)
+        stats_frame.pack(fill=BOTH, expand=True)
 
-    def _build_ui(self):
-        ttk.Label(self, text="🖥️ System Health Dashboard", font=("Segoe UI", 14, "bold")).pack(pady=5)
+        # CPU
+        self.cpu_label = tb.Label(stats_frame, text="CPU Usage: --%", font=("Segoe UI", 12))
+        self.cpu_label.grid(row=0, column=0, sticky=W, pady=5)
 
-        self.cpu_var = tk.StringVar()
-        self.ram_var = tk.StringVar()
-        self.disk_var = tk.StringVar()
-        self.net_var = tk.StringVar()
+        # RAM
+        self.ram_label = tb.Label(stats_frame, text="RAM Usage: --%", font=("Segoe UI", 12))
+        self.ram_label.grid(row=1, column=0, sticky=W, pady=5)
 
-        for label, var in [
-            ("CPU Usage:", self.cpu_var),
-            ("RAM Usage:", self.ram_var),
-            ("Disk Usage:", self.disk_var),
-            ("Network I/O:", self.net_var),
-        ]:
-            frame = ttk.Frame(self)
-            frame.pack(fill="x", padx=15, pady=4)
-            ttk.Label(frame, text=label, width=15, anchor="w").pack(side="left")
-            ttk.Label(frame, textvariable=var, anchor="w").pack(side="left")
+        # Disk
+        self.disk_label = tb.Label(stats_frame, text="Disk Usage: --%", font=("Segoe UI", 12))
+        self.disk_label.grid(row=2, column=0, sticky=W, pady=5)
 
-        sys_info = f"{platform.system()} {platform.release()} ({platform.machine()})"
-        ttk.Label(self, text=sys_info, font=("Segoe UI", 9, "italic")).pack(side="bottom", pady=5)
+        # Network
+        self.net_label = tb.Label(stats_frame, text="Network: --", font=("Segoe UI", 12))
+        self.net_label.grid(row=3, column=0, sticky=W, pady=5)
+
+        # Refresh button
+        tb.Button(
+            self,
+            text="🔄 Refresh Now",
+            bootstyle=SUCCESS,
+            command=self.update_stats
+        ).pack(pady=10)
+
+        # Background auto-refresh
+        threading.Thread(target=self.auto_refresh, daemon=True).start()
 
     def update_stats(self):
-        self.cpu_var.set(f"{psutil.cpu_percent()}%")
-        self.ram_var.set(f"{psutil.virtual_memory().percent}%")
-        self.disk_var.set(f"{psutil.disk_usage('/').percent}%")
-        net_io = psutil.net_io_counters()
-        self.net_var.set(f"Sent: {net_io.bytes_sent // 1024} KB | Recv: {net_io.bytes_recv // 1024} KB")
+        cpu = get_cpu_usage()
+        ram = get_ram_usage()
+        disk = get_disk_usage()
+        net = get_network_stats()
 
-        self.after(REFRESH_INTERVAL, self.update_stats)
+        self.cpu_label.config(text=f"CPU Usage: {cpu}%")
+        self.ram_label.config(text=f"RAM Usage: {ram}%")
+        self.disk_label.config(text=f"Disk Usage: {disk}%")
+        self.net_label.config(text=f"Network: {net}")
+
+    def auto_refresh(self):
+        while True:
+            self.update_stats()
+            time.sleep(5)
+
 
 if __name__ == "__main__":
     app = SystemHealthDashboard()
